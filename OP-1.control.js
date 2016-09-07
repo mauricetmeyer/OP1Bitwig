@@ -86,7 +86,7 @@ var OP1 = {
 // Initialize
 function init() {
   // MIDI ports
-  host.getMidiInPort(0).setMidiCallback(onMidiPort1);
+  host.getMidiInPort(0).setMidiCallback(onMidiPort);
   generic = host.getMidiInPort(0).createNoteInput("MIDI Keyboard", "??????");
   generic.setShouldConsumeEvents(false);
 
