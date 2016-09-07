@@ -14,6 +14,10 @@ loadAPI(1);
 host.defineController("Teenage Engineering", "OP-1", "2.0-beta", "befd66e0-6abd-11e6-bdf4-0800200c9a66");
 host.defineMidiPorts(1, 1);
 
+var Ctrl = {
+  position: '1.1.1'
+}
+
 // OP1
 var OP1 = {
   //
@@ -80,8 +84,21 @@ var OP1 = {
   ENCODER_END_CC:    4,
 
   LOWEST_CC:         1,
-  HIGHEST_CC:        119
+  HIGHEST_CC:        119,
+
+
+  ID_MIDI:              'f0 7e 7f 06 01 f7',
+  INIT_MIDI:            'f0 00 20 76 00 01 02 f7',
+  EXIT_MIDI:            'f0 00 20 76 00 01 00 f7',
+  TEXT_INIT_MIDI:       'f0 00 20 76 00 03',
+  TEXT_EXIT_MIDI:       'f7',
+  TEXT_COLOR_INIT_MIDI: 'f0 00 20 76 00 04'
 };
+
+function execMidi(sequence)
+{
+  host.getMidiOutPort(0).sendSysex(sequence);
+}
 
 // Initialize
 function init() {
@@ -92,7 +109,8 @@ function init() {
 
   //
   // Init
-  host.getMidiOutPort(0).sendSysex("f0 00 20 76 00 01 02 f7");
+  execMidi(OP1.INIT_MIDI)
+  showText(' ');
 
   //
   // Create host objects
@@ -103,6 +121,8 @@ function init() {
   trackBank = host.createTrackBankSection(8, 4, 0);
   cursorDevice = host.createCursorDeviceSection(8);
   userControls = host.createUserControlsSection(OP1.HIGHEST_CC - OP1.LOWEST_CC + 1 - 8);
+
+  transport.getPosition().addTimeObserver(".", 1, 2, 2, 0, onTimeUpdate);
 }
 
 function isInDeviceParametersRange(cc)
@@ -112,11 +132,8 @@ function isInDeviceParametersRange(cc)
 
 function onMidiPort(status, data1, data2)
 {
-  println('data1: + ' + data1);
-
   if (OP1.isMode == OP1.MODE_MIXER)
   {
-    println(data2);
     switch (data1) {
       case OP1.ENCODER_1: // Volume selected track
         cursorTrack.getVolume().set(data2, 128);
@@ -145,21 +162,25 @@ function onMidiPort(status, data1, data2)
       // Modes
       case OP1.MODE_1_BUTTON:
         OP1.isMode  = 0;
+        update_display_clip_mode();
         host.showPopupNotification("Clip Mode");
         break;
 
       case OP1.MODE_2_BUTTON:
         OP1.isMode  = 1;
+        update_display_perform_mode();
         host.showPopupNotification("Performance Mode");
         break;
 
       case OP1.MODE_3_BUTTON:
         OP1.isMode  = 2;
+        update_display_arrange_mode();
         host.showPopupNotification("Arrange Mode");
         break;
 
       case OP1.MODE_4_BUTTON:
         OP1.isMode  = 3;
+        update_display_mixer_mode();
         host.showPopupNotification("Mixer Mode");
         break;
 
@@ -224,6 +245,21 @@ function onMidiPort(status, data1, data2)
   }
 }
 
+function onTimeUpdate(value)
+{
+  Ctrl.position = value;
+  if (OP1.isMode == OP1.MODE_ARRANGE) {
+    update_display_arrange_mode();
+  }
+}
+
+function showText(text)
+{
+  var d = trim(text);
+  var l = d.length;
+  execMidi(OP1.TEXT_INIT_MIDI + ' ' + d2h(l) + d.toHex(l) + OP1.TEXT_EXIT_MIDI);
+}
+
 function cursorAction(cursorButton)
 {
   // TRACK
@@ -255,4 +291,62 @@ function cursorAction(cursorButton)
   }
 }
 
-function exit() {}
+
+function update_display_clips()
+{
+  count    = 0;
+  colors   = [];
+  length   = [];
+  sequence = [];
+}
+
+function update_display_perform_mode()
+{
+  showText("perform\rmode"); 
+}
+
+function update_display_clip_mode()
+{
+  showText("sel. clip\r"); 
+}
+
+function update_display_arrange_mode()
+{
+  showText("song pos,\r" + Ctrl.position);
+}
+
+function update_display_mixer_mode()
+{
+  showText("sel. track\r");
+}
+
+
+
+function trim(str) {
+  str = str.replace(/^\s+/, '');
+  for (var i = str.length - 1; i >= 0; i--) {
+    if (/\S/.test(str.charAt(i))) {
+      str = str.substring(0, i + 1);
+      break;
+    }
+  }
+
+  return str;
+}
+
+function d2h(d)
+{
+    var hex = Number(d).toString(16);
+    if (hex.length < 2) {
+        hex = "0" + hex;
+    }
+
+    return hex;
+}
+
+function exit()
+{
+  //
+  // Exit
+  execMidi(OP1.EXIT_MIDI);
+}
